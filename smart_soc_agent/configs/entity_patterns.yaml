@@ -1,0 +1,73 @@
+patterns:
+  account:
+    - "\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}\\b"
+    - "\\bS-1-5-21-[0-9-]+\\b"
+  user:
+    - "\\bu-[A-Za-z0-9_.-]+\\b"
+  target:
+    - "\\bt-[A-Za-z0-9_.-]+\\b"
+  ip:
+    - "\\b(?:(?:25[0-5]|2[0-4][0-9]|1?[0-9]{1,2})\\.){3}(?:25[0-5]|2[0-4][0-9]|1?[0-9]{1,2})\\b"
+  host:
+    - "\\b[A-Za-z][A-Za-z0-9-]{2,63}\\b"
+  domain:
+    - "\\b(?:[A-Za-z0-9-]+\\.)+[A-Za-z]{2,}\\b"
+  url:
+    - "\\bhttps?://[^\\s'\"<>]+"
+  sha256:
+    - "\\b[a-fA-F0-9]{64}\\b"
+  app_id:
+    - "\\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\\b"
+  timestamp:
+    - "\\b\\d{4}-\\d{2}-\\d{2}[ T]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z?\\b"
+  file:
+    - "\\b[A-Za-z0-9_.-]+\\.(?:exe|dll|ps1|bat|cmd|js|vbs|lnk|zip|rar|7z|docx?|xlsx?|pptx?|pdf)\\b"
+
+field_hints:
+  account:
+    - Account
+    - AccountName
+    - AccountUpn
+    - InitiatingProcessAccountUpn
+    - RecipientEmailAddress
+    - SenderFromAddress
+    - UserId
+    - UserPrincipalName
+  ip:
+    - IPAddress
+    - IpAddress
+    - LocalIP
+    - RemoteIP
+    - SourceIpAddress
+    - DestinationIpAddress
+  host:
+    - DeviceName
+    - HostName
+    - Computer
+    - MachineName
+  domain:
+    - Domain
+    - RemoteUrl
+    - UrlDomain
+  url:
+    - Url
+    - RemoteUrl
+  sha256:
+    - SHA256
+    - InitiatingProcessSHA256
+  app_id:
+    - AppId
+    - ApplicationId
+  timestamp:
+    - Timestamp
+    - TimeGenerated
+    - CreatedDateTime
+  file:
+    - FileName
+    - FolderPath
+    - InitiatingProcessFileName
+    - ProcessCommandLine
+  target:
+    - Target
+    - TargetId
+    - data_target

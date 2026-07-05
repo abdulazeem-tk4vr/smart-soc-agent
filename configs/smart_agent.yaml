@@ -1,0 +1,34 @@
+mode: full
+max_steps: 25
+layer: alert
+split: test
+cache_seed: 131
+temperature: 0
+eval_model: gpt-4o
+llm:
+  backend: ollama
+  base_url_env: OLLAMA_BASE_URL
+  model_env: OLLAMA_MODEL
+rag:
+  enabled: true
+  backend: qdrant
+  chunks_path: data/rag/chunks.jsonl
+  qdrant_path: data/rag/qdrant
+scanner:
+  enabled: true
+answer_gate:
+  max_candidates: 9
+  require_non_question_support: true
+  require_content_exposed_support: true
+  reject_scanner_flagged_only: true
+budget:
+  phases:
+    investigate_first_until_step: 3
+    answer_fill_remaining_steps: 2
+ablation_arms:
+  - baseline
+  - B1_backbone
+  - B2_schema
+  - B3_gate
+  - B4_rag
+  - full

@@ -209,6 +209,19 @@ tempCodeRunnerFile.py
 # PyPI configuration file
 .pypirc
 
+# Smart SOC generated/external artifacts
+data/rag/**
+!data/rag/
+!data/rag/.gitkeep
+!data/rag/raw/
+!data/rag/raw/.gitkeep
+!data/rag/qdrant/
+!data/rag/qdrant/.gitkeep
+trial_results/
+final_results/
+analysis_results/
+outputs/
+
 # Marimo
 marimo/_static/
 marimo/_lsp/

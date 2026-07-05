@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "smart-soc-agent"
+version = "0.1.0"
+description = "Evidence-gated Smart SOC Agent for ExCyTIn-Bench / SecRL"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "mysql-connector-python",
+    "pydantic",
+    "pyyaml",
+    "requests",
+    "openai",
+    "qdrant-client",
+    "sentence-transformers",
+    "torch",
+]
+
+[tool.setuptools.packages.find]
+include = ["smart_soc_agent*"]
+
+[tool.setuptools.package-data]
+smart_soc_agent = ["configs/*.yaml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

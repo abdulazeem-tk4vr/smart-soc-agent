@@ -1,0 +1,110 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 840" font-family="Segoe UI, Arial, Helvetica, sans-serif">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#1a1a1a"/>
+    </marker>
+    <marker id="arrowRed" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#9b2c2c"/>
+    </marker>
+    <style>
+      .title { font-size: 26px; font-weight: 700; fill: #1a1a1a; }
+      .subtitle { font-size: 15px; fill: #555; }
+      .boxTitle { font-size: 19px; font-weight: 700; fill: #1a1a1a; }
+      .boxSub { font-size: 13px; font-style: italic; fill: #555; }
+      .innerTitle { font-size: 15px; font-weight: 700; fill: #1a1a1a; }
+      .detail { font-size: 12.5px; fill: #333; }
+      .flow { font-size: 14px; font-weight: 600; fill: #1a1a1a; }
+      .num { font-size: 14px; font-weight: 700; fill: #1a1a1a; }
+      .limTitle { font-size: 15px; font-weight: 700; fill: #9b2c2c; }
+      .limItem { font-size: 12.5px; fill: #4a2020; }
+    </style>
+  </defs>
+
+  <text x="720" y="40" text-anchor="middle" class="title">ExCyTIn-Bench — Baseline ReAct Agent</text>
+  <text x="720" y="64" text-anchor="middle" class="subtitle">Current SecRL BaselineAgent: a single LLM over one growing transcript (motivating figure)</text>
+
+  <!-- Environment box -->
+  <rect x="60" y="100" width="620" height="540" rx="22" fill="#FFF1BE" stroke="#1f3a5f" stroke-width="2.5"/>
+  <text x="370" y="140" text-anchor="middle" class="boxTitle">ExCyTIn Playground</text>
+  <text x="370" y="160" text-anchor="middle" class="boxSub">ExcytinEnv — one episode per security question</text>
+
+  <rect x="100" y="185" width="540" height="120" rx="10" fill="#ffffff" stroke="#555" stroke-width="1.5"/>
+  <text x="120" y="212" class="innerTitle">Question Set</text>
+  <text x="120" y="234" class="detail">Graph-derived QA pairs per incident (o1/test), 8 real multistage attacks</text>
+  <text x="120" y="252" class="detail">Question text = initial observation; gold answer hidden from agent</text>
+  <text x="120" y="270" class="detail">Episode budget: max_steps = 15 (25 in paper runs)</text>
+
+  <rect x="100" y="325" width="540" height="120" rx="10" fill="#ffffff" stroke="#555" stroke-width="1.5"/>
+  <text x="120" y="352" class="innerTitle">MySQL Incident Database</text>
+  <text x="120" y="374" class="detail">20+ log tables per incident: SecurityAlert, AlertEvidence, AlertInfo,</text>
+  <text x="120" y="392" class="detail">OfficeActivity, AADSignInEventsBeta, DeviceProcessEvents, EmailEvents, …</text>
+  <text x="120" y="410" class="detail">Raw SQL executed verbatim; rows stringified, truncated at 15 entries / 100k chars</text>
+
+  <rect x="100" y="465" width="540" height="120" rx="10" fill="#ffffff" stroke="#555" stroke-width="1.5"/>
+  <text x="120" y="492" class="innerTitle">LLM Evaluator</text>
+  <text x="120" y="514" class="detail">Judge model (GPT-4o) compares submitted answer to gold answer</text>
+  <text x="120" y="532" class="detail">Reward in [0, 1] returned only at submit; episode ends</text>
+  <text x="120" y="550" class="detail">Unsupported claims and missing entities lower the score</text>
+
+  <!-- Agent box -->
+  <rect x="960" y="160" width="420" height="420" rx="18" fill="#DDEFC9" stroke="#3c6e3c" stroke-width="2.5"/>
+  <text x="1170" y="196" text-anchor="middle" class="boxTitle">Baseline Agent (ReAct)</text>
+  <text x="1170" y="216" text-anchor="middle" class="boxSub">secgym/agents/baseline_agent.py</text>
+
+  <rect x="990" y="238" width="360" height="66" rx="8" fill="#ffffff" stroke="#3c6e3c" stroke-width="1.2"/>
+  <text x="1008" y="262" class="innerTitle">Single LLM · single message list</text>
+  <text x="1008" y="282" class="detail">System prompt + every raw observation appended forever</text>
+
+  <rect x="990" y="316" width="360" height="66" rx="8" fill="#ffffff" stroke="#3c6e3c" stroke-width="1.2"/>
+  <text x="1008" y="340" class="innerTitle">Thought / Action per turn</text>
+  <text x="1008" y="360" class="detail">Response split on "Action:"; retry LLM call if parse fails</text>
+
+  <rect x="990" y="394" width="360" height="66" rx="8" fill="#ffffff" stroke="#3c6e3c" stroke-width="1.2"/>
+  <text x="1008" y="418" class="innerTitle">sql_parser (regex)</text>
+  <text x="1008" y="438" class="detail">Extracts execute[&lt;SQL&gt;] or submit[&lt;answer&gt;], strips backticks</text>
+
+  <rect x="990" y="472" width="360" height="82" rx="8" fill="#ffffff" stroke="#3c6e3c" stroke-width="1.2"/>
+  <text x="1008" y="496" class="innerTitle">No structured state</text>
+  <text x="1008" y="516" class="detail">Memory = transcript only · no query dedup · no schema cache</text>
+  <text x="1008" y="534" class="detail">Forced summary near max_steps (submit_summary flag) only</text>
+
+  <!-- Flow arrows -->
+  <line x1="680" y1="235" x2="960" y2="235" stroke="#1a1a1a" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <circle cx="710" cy="215" r="12" fill="none" stroke="#1a1a1a" stroke-width="1.8"/>
+  <text x="710" y="220" text-anchor="middle" class="num">1</text>
+  <text x="820" y="222" text-anchor="middle" class="flow">Feed question</text>
+
+  <line x1="960" y1="345" x2="680" y2="345" stroke="#1a1a1a" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <circle cx="710" cy="325" r="12" fill="none" stroke="#1a1a1a" stroke-width="1.8"/>
+  <text x="710" y="330" text-anchor="middle" class="num">2</text>
+  <text x="825" y="332" text-anchor="middle" class="flow">execute[SQL]</text>
+
+  <line x1="680" y1="430" x2="960" y2="430" stroke="#1a1a1a" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <text x="820" y="417" text-anchor="middle" class="flow">raw rows / SQL error</text>
+  <text x="820" y="450" text-anchor="middle" class="detail">appended verbatim to transcript</text>
+
+  <line x1="960" y1="530" x2="680" y2="530" stroke="#1a1a1a" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <circle cx="710" cy="510" r="12" fill="none" stroke="#1a1a1a" stroke-width="1.8"/>
+  <text x="710" y="515" text-anchor="middle" class="num">3</text>
+  <text x="828" y="517" text-anchor="middle" class="flow">submit[answer]</text>
+  <text x="820" y="549" text-anchor="middle" class="detail">evaluation &amp; reward end the episode</text>
+
+  <!-- Limitations strip -->
+  <rect x="60" y="680" width="1320" height="130" rx="12" fill="#FBEAEA" stroke="#9b2c2c" stroke-width="1.8" stroke-dasharray="7 4"/>
+  <text x="84" y="710" class="limTitle">Baseline limitations (what the smart agent must fix)</text>
+
+  <text x="90" y="740" class="limItem">▪ Transcript-only memory: raw 100k-char SQL dumps</text>
+  <text x="90" y="758" class="limItem">   accumulate → context blowup, late-step reasoning degrades</text>
+  <text x="90" y="784" class="limItem">▪ No query memory: repeats failed / duplicate SQL,</text>
+  <text x="90" y="802" class="limItem">   burning scarce environment steps</text>
+
+  <text x="560" y="740" class="limItem">▪ Schema re-discovered every question: SHOW TABLES /</text>
+  <text x="560" y="758" class="limItem">   DESCRIBE consume 3–5 of 15 steps per episode</text>
+  <text x="560" y="784" class="limItem">▪ No answer verification: nothing enforces that claimed</text>
+  <text x="560" y="802" class="limItem">   entities were actually observed in the logs</text>
+
+  <text x="1030" y="740" class="limItem">▪ No budget awareness: no investigate → answer-fill</text>
+  <text x="1030" y="758" class="limItem">   phases; submits too early or never</text>
+  <text x="1030" y="784" class="limItem">▪ Untrusted log text flows straight into the prompt:</text>
+  <text x="1030" y="802" class="limItem">   no injection scanning of retrieved content</text>
+</svg>
