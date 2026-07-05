@@ -3,6 +3,7 @@
 # question stopwords must not become planner entities.
 from smart_soc_agent.agent import SmartSocAgent
 from smart_soc_agent.answer_gate import best_effort_answer
+from smart_soc_agent.sql_planner import _like_query, answer_gap_entity_types
 
 
 QUESTION = (
@@ -59,6 +60,42 @@ def test_question_name_phrases_seed_planner_pivots():
 
     assert "Manatee Tempest" in names
     assert "vnevado-win10r" in names
+
+
+def test_answer_type_keys_on_ask_not_context():
+    # Context mentions an IP address, but the ask is the process command line.
+    question = (
+        "An incident involving a ransomware payload on device `vnevado-win11u` with "
+        "IP address `99.83.111.100` has been detected. "
+        "What is the command line of the suspicious process involved in the user behavior change?"
+    )
+    assert answer_gap_entity_types(question)[0] == "file"
+    assert answer_gap_entity_types("What is the IP address of the Manatee Tempest group?")[0] == "ip"
+
+
+def test_like_query_searches_device_and_json_columns():
+    columns = (
+        "TenantId", "TimeGenerated", "AlertId", "Title", "Categories", "EntityType",
+        "EvidenceRole", "EvidenceDirection", "FileName", "RemoteIP", "RemoteUrl",
+        "AccountName", "DeviceName", "AdditionalFields",
+    )
+    sql = _like_query("AlertEvidence", columns, "vnevado-win11u", 15)
+
+    assert "`DeviceName` LIKE" in sql
+    assert "`AdditionalFields` LIKE" in sql
+
+
+def test_guid_fragments_are_not_host_entities():
+    agent = SmartSocAgent()
+    agent.registry.add_row(
+        {"DeviceId": "e34d562e-ef12-4c4e-9bc0-7c6ae357c015", "DeviceName": "vnevado-win11u"},
+        step_seen=1,
+        source_table="AlertEvidence",
+    )
+    hosts = agent.registry.best_entities("host")
+
+    assert "vnevado-win11u" in hosts
+    assert all("e34d562e" not in host and host != "ef12" for host in hosts)
 
 
 def test_question_stopwords_do_not_become_entities():

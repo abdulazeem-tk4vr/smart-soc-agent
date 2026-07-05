@@ -187,10 +187,27 @@ def preferred_tables(layer: str) -> tuple[str, ...]:
 
 
 def answer_gap_entity_types(question: str) -> tuple[str, ...]:
-    lower = question.lower()
+    # Type the answer slot from the actual ask (the last '?' sentence) first;
+    # the incident context routinely mentions other entity kinds (e.g. an IP
+    # address) that would otherwise hijack the requested type.
+    for text in (_ask_focus(question), question):
+        types = _entity_types_for(text.lower())
+        if types:
+            return types
+    return ("account", "host", "ip", "domain", "url", "file", "app_id")
+
+
+def _ask_focus(question: str) -> str:
+    sentences = re.findall(r"[^.?!]*\?", question)
+    return sentences[-1] if sentences else question
+
+
+def _entity_types_for(lower: str) -> tuple[str, ...] | None:
+    if "command line" in lower or "commandline" in lower:
+        return ("file", "host", "account", "app_id")
     if "ip address" in lower or " ip " in lower:
         return ("ip", "host", "domain", "url")
-    if "command line" in lower or "process" in lower:
+    if "process" in lower:
         return ("file", "host", "account", "app_id")
     if "account" in lower or "user" in lower or "upn" in lower:
         return ("account", "host", "ip")
@@ -198,7 +215,7 @@ def answer_gap_entity_types(question: str) -> tuple[str, ...]:
         return ("domain", "url", "ip")
     if "file" in lower or "hash" in lower or "sha" in lower:
         return ("sha256", "file", "host")
-    return ("account", "host", "ip", "domain", "url", "file", "app_id")
+    return None
 
 
 def deterministic_candidates(
@@ -229,15 +246,26 @@ def deterministic_candidates(
     return _dedupe_valid(candidates, table_names, default_limit)
 
 
+_LIKE_COLUMN_TOKENS = (
+    # High-signal first: entity payloads and JSON blobs, then names/devices,
+    # then the remaining identifier-ish columns.
+    ("entities", "additionalfields", "additional", "json"),
+    ("entity", "evidence", "device", "host", "name", "title", "command", "process"),
+    ("alert", "url", "ip", "account", "file", "domain"),
+)
+
+
 def _like_query(table: str, columns: tuple[str, ...], value: str, limit: int) -> str:
-    searchable = [
-        column
-        for column in columns
-        if any(token in column.lower() for token in ("entity", "evidence", "alert", "name", "url", "ip", "account", "host", "device", "json"))
-    ]
+    searchable: list[str] = []
+    for tokens in _LIKE_COLUMN_TOKENS:
+        for column in columns:
+            if column in searchable:
+                continue
+            if any(token in column.lower() for token in tokens):
+                searchable.append(column)
     if not searchable:
         return f"SELECT * FROM {table} LIMIT {limit}"
-    predicate = " OR ".join(f"`{column}` LIKE {quote_sql('%' + value + '%')}" for column in searchable[:8])
+    predicate = " OR ".join(f"`{column}` LIKE {quote_sql('%' + value + '%')}" for column in searchable[:12])
     return f"SELECT * FROM {table} WHERE {predicate} LIMIT {limit}"
 
 

@@ -17,9 +17,14 @@ You may propose one of two intents:
 - submit_answer: a concise final answer only when grounded evidence supports it.
 
 Rules:
+- The database is MySQL. Never use SQL Server/Postgres syntax such as DATEADD, GETUTCDATE(), TOP, ILIKE, DATE_TRUNC, or :: casts.
+- For relative time in MySQL use DATE_SUB(UTC_TIMESTAMP(), INTERVAL n DAY), but prefer explicit timestamps from the question/evidence when available.
+- Use LIMIT for row caps. Do not use SELECT TOP.
 - Use question, schema_digest, registry_top, query_history, and budget only. Never rely on hidden labels or gold fields.
 - Use ONLY tables and columns that appear in schema_digest. Never invent table or column names.
 - Do not repeat SQL already in query_history. Entries in do_not_repeat_sql failed or returned nothing — proposing them again wastes budget.
+- Do not submit minor variants of a zero-row query. If a WHERE clause returned zero rows, REMOVE constraints or switch to a different table/column, never add more constraints.
+- Device/host values are often stored as fully qualified names; prefer LIKE '%shortname%' over equality on DeviceName-like columns.
 - If schema_digest is empty for a table you need, propose DESCRIBE for that table instead of guessing columns.
 - Entities often hide inside wide text/JSON columns (e.g. Entities in SecurityAlert, AlertEvidence fields); use LIKE '%value%' predicates over those columns to pivot.
 - SQL must be one read-only statement and should project narrow columns when useful.
@@ -36,6 +41,7 @@ Choose one action_type:
 - submit_answer: submit only if the answer is grounded by trusted, content-exposed registry evidence.
 
 Rules:
+- The database is MySQL. Reject SQL Server/Postgres syntax such as DATEADD, GETUTCDATE(), TOP, ILIKE, DATE_TRUNC, or :: casts.
 - Reject repeated or unsafe SQL by returning investigate with sql null.
 - Reject answers whose key entity is unsupported, only present in the question, or only appears in scanner-flagged spans.
 - Near the deadline, prefer a short grounded candidate list over an unsupported single claim.

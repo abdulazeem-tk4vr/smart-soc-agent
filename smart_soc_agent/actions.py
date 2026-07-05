@@ -16,6 +16,10 @@ TABLE_REF_RE = re.compile(
     re.IGNORECASE,
 )
 LIMIT_RE = re.compile(r"\blimit\s+\d+\b", re.IGNORECASE)
+NON_MYSQL_DIALECT_RE = re.compile(
+    r"\b(?:(?:dateadd|getutcdate|date_trunc|sysdatetime|nvarchar|isnull)\s*\(|top\s+\d+|ilike\b|::)",
+    re.IGNORECASE,
+)
 STRING_LITERAL_RE = re.compile(r"'(?:[^']|'')*'")
 BACKTICK_IDENT_RE = re.compile(r"`([A-Za-z_][A-Za-z0-9_]*)`")
 COMPARED_IDENT_RE = re.compile(
@@ -123,6 +127,15 @@ def validate_sql(
 
     if MUTATING_KEYWORDS.search(stripped):
         return SQLValidation(False, stripped, "mutating SQL keyword is not allowed")
+
+    non_mysql = NON_MYSQL_DIALECT_RE.search(stripped)
+    if non_mysql:
+        token = non_mysql.group(0).strip()
+        return SQLValidation(
+            False,
+            stripped,
+            f"non-MySQL SQL is not allowed: {token}; use MySQL syntax such as DATE_SUB(UTC_TIMESTAMP(), INTERVAL n DAY) and LIMIT",
+        )
 
     tables = referenced_tables(stripped)
     if table_allowlist is not None and tables:

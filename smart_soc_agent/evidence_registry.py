@@ -123,6 +123,9 @@ def _question_name_phrases(question: str) -> list[str]:
     return phrases
 
 
+HEX_FRAGMENT_RE = re.compile(r"^[0-9a-fA-F-]+$")
+
+
 def _looks_like_noise(value: str, entity_type: str) -> bool:
     if not value or value == ".":
         return True
@@ -131,6 +134,9 @@ def _looks_like_noise(value: str, entity_type: str) -> bool:
     if entity_type == "domain" and PROCESS_LIKE_RE.match(value):
         return True
     if entity_type == "host" and "." in value:
+        return True
+    if entity_type == "host" and HEX_FRAGMENT_RE.match(value):
+        # GUIDs and their fragments ("e34d562e-ef12-…", "ef12") are not hosts.
         return True
     return False
 
