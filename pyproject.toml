@@ -9,6 +9,7 @@ description = "Evidence-gated Smart SOC Agent for ExCyTIn-Bench / SecRL"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+    "fastapi",
     "mysql-connector-python",
     "pydantic",
     "pyyaml",
@@ -17,6 +18,7 @@ dependencies = [
     "qdrant-client",
     "sentence-transformers",
     "torch",
+    "uvicorn",
 ]
 
 [tool.setuptools.packages.find]
