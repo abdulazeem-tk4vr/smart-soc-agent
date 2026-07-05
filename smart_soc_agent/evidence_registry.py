@@ -27,6 +27,14 @@ MALICIOUS_WORDS = {
 }
 ENTITY_PATTERN_RESOURCE = "entity_patterns.yaml"
 PROCESS_LIKE_RE = re.compile(r"^[A-Za-z0-9_.-]+\.(?:exe|dll|ps1|bat|cmd|js|vbs|lnk)$", re.IGNORECASE)
+STOPWORD_VALUES = frozenset(
+    """a an and are as at be been but by can could did for from had has have how in into is it its
+    may might must not of on or ran should that the this to via was were what when where which who
+    why will with would command control behavior process host device account alert alerts incident
+    incidents malware attacker attackers infection activity evidence measures signs remote active
+    blocked involved detected indicated precautionary residual security malicious suspicious
+    check known group id address""".split()
+)
 
 
 @dataclass(frozen=True)
@@ -93,8 +101,32 @@ def _normalize_entity(value: str, entity_type: str) -> str:
     return normalized
 
 
+NAME_PHRASE_RE = re.compile(r"\b([A-Z][a-z0-9]+(?:\s+[A-Z][a-z0-9]+)+)\b")
+BACKTICK_SPAN_RE = re.compile(r"`([^`]{2,80})`")
+
+
+def _question_name_phrases(question: str) -> list[str]:
+    """Proper-noun phrases and backticked spans worth pivoting on (e.g. threat
+    actor names like 'Manatee Tempest' that no entity regex captures)."""
+    phrases: list[str] = []
+    for match in NAME_PHRASE_RE.finditer(question):
+        phrase = match.group(1)
+        first_word = phrase.split()[0].lower()
+        if first_word in STOPWORD_VALUES:
+            continue
+        if phrase not in phrases:
+            phrases.append(phrase)
+    for match in BACKTICK_SPAN_RE.finditer(question):
+        span = match.group(1).strip()
+        if span and span not in phrases:
+            phrases.append(span)
+    return phrases
+
+
 def _looks_like_noise(value: str, entity_type: str) -> bool:
     if not value or value == ".":
+        return True
+    if value.lower() in STOPWORD_VALUES:
         return True
     if entity_type == "domain" and PROCESS_LIKE_RE.match(value):
         return True
@@ -113,6 +145,21 @@ class EvidenceRegistry:
 
     def seed_question(self, question: str, step_seen: int = 0) -> None:
         self.add_text(question, source_table="question", step_seen=step_seen, trust_tier="trusted", source="question")
+        for phrase in _question_name_phrases(question):
+            support = EntitySupport(
+                entity_value=phrase,
+                entity_type="name",
+                evidence_id="question:names",
+                source_table="question",
+                trust_tier="trusted",
+                source="question",
+                injection_id=None,
+                content_exposed=True,
+                step_seen=step_seen,
+                supporting_fields=("text",),
+            )
+            if support not in self.supports:
+                self.supports.append(support)
 
     def add_text(
         self,

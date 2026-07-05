@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from .actions import projected_columns, referenced_tables, submit_answer, validate_sql
-from .answer_gate import best_gated_answer
+from .answer_gate import best_effort_answer, best_gated_answer
 from .evidence_registry import EvidenceRegistry
 from .llm import LLMClient, build_llm_client_from_env
 from .observation import ParsedObservation, parse_observation
@@ -14,6 +14,8 @@ from .sql_planner import answer_gap_entity_types, deterministic_candidates, pref
 
 
 DEFAULT_MAX_STEPS = 15
+SCHEMA_WARMUP_TABLES = 3
+DESCRIBE_BUDGET = 6
 
 
 @dataclass
@@ -65,15 +67,20 @@ class SmartSocAgent:
                 self.registry.seed_question(parsed.question)
                 self.question_seeded = True
 
-        if self.step_count >= max(0, self.max_steps - 1):
-            return self._emit_submit(self._compose_answer("budget deadline reached"))
-
         if parsed.kind == "rows":
             self._update_backbone_state(parsed)
         elif parsed.failed:
             self._update_failed_state()
 
+        if self.step_count >= max(0, self.max_steps - 1):
+            return self._emit_submit(self._final_answer("budget deadline reached"))
+
         if self.mode in {"agentic", "full", "graph"}:
+            warmup = self._schema_warmup_query()
+            if warmup is not None:
+                self.last_query_table = self._query_table(warmup)
+                self.last_columns = self.schema_cache.columns_for(self.last_query_table)
+                return self._emit_action(warmup, submit=False, reason="schema warmup")
             action, submit, state = self._run_graph(parsed)
             return self._emit_validated(action, submit=submit, reason="agentic graph", graph_state=state)
 
@@ -83,7 +90,7 @@ class SmartSocAgent:
 
         action = self._next_query(parsed)
         if action is None:
-            return self._emit_submit(self._compose_answer("deterministic discovery exhausted"))
+            return self._emit_submit(self._final_answer("deterministic discovery exhausted"))
 
         table_names = self._available_tables()
         validation = validate_sql(action, table_allowlist=table_names or None, default_limit=self.default_limit)
@@ -138,6 +145,7 @@ class SmartSocAgent:
 
         if self.llm is None:
             self.llm = build_llm_client_from_env()
+        self.usage_summary["llm_active"] = self.llm is not None
         if self.rag_enabled and self.rag_intel is None:
             self.rag_intel = build_rag_intel()
         graph = SmartSocGraph(
@@ -148,6 +156,21 @@ class SmartSocAgent:
         )
         return graph.next_action(parsed)
 
+    def _schema_warmup_query(self) -> str | None:
+        if not self.schema_cache.table_names():
+            if not self._already_emitted("SHOW TABLES"):
+                return "SHOW TABLES"
+            return None
+        for table in preferred_tables(self.layer)[:SCHEMA_WARMUP_TABLES]:
+            if not self.schema_cache.has_table(table):
+                continue
+            if table.lower() in self.failed_tables:
+                continue
+            if not self.schema_cache.is_described(table) and not self._already_emitted(f"DESCRIBE {table}"):
+                self.schema_seen.add(table)
+                return f"DESCRIBE {table}"
+        return None
+
     def _next_query(self, parsed: ParsedObservation) -> str | None:
         table_names = self._available_tables()
         if not table_names:
@@ -155,10 +178,11 @@ class SmartSocAgent:
                 return "SHOW TABLES"
             return None
 
-        table = self.schema_cache.undescribed_preferred(preferred_tables(self.layer))
-        if table:
-            self.schema_seen.add(table)
-            return f"DESCRIBE {table}"
+        if len(self.schema_seen) < DESCRIBE_BUDGET:
+            table = self.schema_cache.undescribed_preferred(preferred_tables(self.layer), include_others=False)
+            if table:
+                self.schema_seen.add(table)
+                return f"DESCRIBE {table}"
 
         known_entities = self._known_entities()
         columns = {table: self.schema_cache.columns_for(table) for table in table_names}
@@ -200,6 +224,15 @@ class SmartSocAgent:
         if self._last_action_was("DESCRIBE") and self.last_query_table:
             self.schema_cache.record_describe(self.last_query_table, ())
             self.failed_tables.add(self.last_query_table.lower())
+
+    def _final_answer(self, reason: str) -> str:
+        answer, decision = best_gated_answer(self.question, self.registry)
+        if answer and decision.approved:
+            return answer
+        salvage = best_effort_answer(self.question, self.registry)
+        if salvage:
+            return salvage
+        return self._compose_answer(reason)
 
     def _compose_answer(self, reason: str) -> str:
         if self.question:
@@ -284,7 +317,7 @@ class SmartSocAgent:
     def _known_entities(self) -> dict[str, list[str]]:
         return {
             entity_type: self.registry.best_entities(entity_type)
-            for entity_type in ("account", "ip", "host", "domain", "url", "sha256", "file", "app_id", "timestamp")
+            for entity_type in ("name", "account", "ip", "host", "domain", "url", "sha256", "file", "app_id", "timestamp")
         }
 
     @staticmethod
@@ -296,7 +329,19 @@ class SmartSocAgent:
         return {table for table in self.schema_cache.table_names() if table.lower() not in self.failed_tables}
 
     def _validate_candidate_sql(self, sql: str):
-        return validate_sql(sql, table_allowlist=self._available_tables() or None, default_limit=self.default_limit)
+        return validate_sql(
+            sql,
+            table_allowlist=self._available_tables() or None,
+            column_map=self._column_map() or None,
+            default_limit=self.default_limit,
+        )
+
+    def _column_map(self) -> dict[str, tuple[str, ...]]:
+        return {
+            table.lower(): self.schema_cache.columns_for(table)
+            for table in self._available_tables()
+            if self.schema_cache.is_described(table) and self.schema_cache.columns_for(table)
+        }
 
     def _record_query_result(self, parsed: ParsedObservation | None) -> None:
         if parsed is None or not self.action_trace:

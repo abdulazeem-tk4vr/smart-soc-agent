@@ -63,11 +63,17 @@ class SchemaCache:
         schema = self.tables.get(self._key(table))
         return tuple(schema.columns) if schema else ()
 
-    def undescribed_preferred(self, preferred: tuple[str, ...]) -> str | None:
+    def is_described(self, table: str) -> bool:
+        schema = self.tables.get(self._key(table))
+        return bool(schema and schema.described)
+
+    def undescribed_preferred(self, preferred: tuple[str, ...], include_others: bool = True) -> str | None:
         for table in preferred:
             schema = self.tables.get(self._key(table))
             if schema and not schema.described:
                 return schema.name
+        if not include_others:
+            return None
         for schema in sorted(self.tables.values(), key=lambda item: item.name.lower()):
             if not schema.described:
                 return schema.name

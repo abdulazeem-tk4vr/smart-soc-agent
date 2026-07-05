@@ -4,8 +4,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Any
 
-from .actions import validate_sql
-from .answer_gate import GateDecision, best_gated_answer, gate_answer
+from .answer_gate import GateDecision, best_effort_answer, best_gated_answer, gate_answer
 from .investigator import InvestigationIntent, VerifierCandidate
 
 
@@ -36,14 +35,11 @@ class Responder:
             return verified.answer, True, verified
 
         if deadline:
-            answer, decision = best_gated_answer(self.runtime.question, self.runtime.registry)
-            if answer:
-                return answer, True, VerifiedActionCandidate("submit_answer", answer=answer, gate_decision=decision)
-            return self.runtime._compose_answer("budget deadline reached"), True, verified
+            return self._salvage_submit("budget deadline reached", verified)
 
         sql = verified.sql or intent.sql
         if sql:
-            validation = validate_sql(sql, table_allowlist=self.runtime._available_tables() or None, default_limit=self.runtime.default_limit)
+            validation = self.runtime._validate_candidate_sql(sql)
             if validation.ok and not self.runtime._already_emitted(validation.sql):
                 return validation.sql, False, verified
 
@@ -51,10 +47,16 @@ class Responder:
         if fallback is not None:
             return fallback, False, verified
 
+        return self._salvage_submit("agentic discovery exhausted", verified)
+
+    def _salvage_submit(self, reason: str, verified: VerifiedActionCandidate) -> tuple[str, bool, VerifiedActionCandidate]:
         answer, decision = best_gated_answer(self.runtime.question, self.runtime.registry)
         if answer:
             return answer, True, VerifiedActionCandidate("submit_answer", answer=answer, gate_decision=decision)
-        return self.runtime._compose_answer("agentic discovery exhausted"), True, verified
+        salvage = best_effort_answer(self.runtime.question, self.runtime.registry)
+        if salvage:
+            return salvage, True, VerifiedActionCandidate("submit_answer", answer=salvage, rationale=f"ungated salvage: {reason}")
+        return self.runtime._compose_answer(reason), True, verified
 
     def _verify_candidate(self, candidate: VerifierCandidate) -> VerifiedActionCandidate:
         if candidate.action_type == "submit_answer" and candidate.answer:

@@ -16,6 +16,18 @@ TABLE_REF_RE = re.compile(
     re.IGNORECASE,
 )
 LIMIT_RE = re.compile(r"\blimit\s+\d+\b", re.IGNORECASE)
+STRING_LITERAL_RE = re.compile(r"'(?:[^']|'')*'")
+BACKTICK_IDENT_RE = re.compile(r"`([A-Za-z_][A-Za-z0-9_]*)`")
+COMPARED_IDENT_RE = re.compile(
+    r"\b([A-Za-z_][A-Za-z0-9_]*)\s*(?:=|!=|<>|>=|<=|<|>|\bLIKE\b|\bIN\b|\bIS\b|\bBETWEEN\b)",
+    re.IGNORECASE,
+)
+SQL_KEYWORDS = frozenset(
+    """select from where and or not in like is null limit order by group having asc desc as on
+    join inner left right outer cross distinct count sum min max avg between exists case when
+    then else end union all any some show describe desc explain true false interval second
+    minute hour day week month year date time""".split()
+)
 
 
 @dataclass(frozen=True)
@@ -91,7 +103,13 @@ def normalize_report(report: dict[str, Any] | None) -> dict[str, Any]:
     }
 
 
-def validate_sql(sql: str, *, table_allowlist: set[str] | None = None, default_limit: int = 15) -> SQLValidation:
+def validate_sql(
+    sql: str,
+    *,
+    table_allowlist: set[str] | None = None,
+    column_map: dict[str, tuple[str, ...]] | None = None,
+    default_limit: int = 15,
+) -> SQLValidation:
     stripped = _strip_one_optional_semicolon(sql)
     if not stripped:
         return SQLValidation(False, "", "empty SQL")
@@ -113,8 +131,60 @@ def validate_sql(sql: str, *, table_allowlist: set[str] | None = None, default_l
         if unknown:
             return SQLValidation(False, stripped, f"unknown table(s): {', '.join(sorted(unknown))}", frozenset(tables))
 
+    if column_map and tables and stripped.lower().startswith("select"):
+        unknown_columns, known_columns = _unknown_columns(stripped, tables, column_map)
+        if unknown_columns:
+            hint = ", ".join(sorted(known_columns)[:15])
+            return SQLValidation(
+                False,
+                stripped,
+                f"unknown column(s): {', '.join(sorted(unknown_columns))}; valid columns for {', '.join(sorted(tables))}: {hint}",
+                frozenset(tables),
+            )
+
     normalized = add_limit(stripped, default_limit=default_limit)
     return SQLValidation(True, normalized, tables=frozenset(tables), columns=projected_columns(normalized))
+
+
+def _unknown_columns(
+    sql: str,
+    tables: set[str],
+    column_map: dict[str, tuple[str, ...]],
+) -> tuple[set[str], set[str]]:
+    """Return (unknown, known) column names for SQL against described tables.
+
+    Only enforced when every referenced table has a known column list —
+    otherwise the schema is incomplete and we cannot rule columns out.
+    """
+    known_columns: set[str] = set()
+    for table in tables:
+        columns = column_map.get(table.lower())
+        if not columns:
+            return set(), set()
+        known_columns.update(columns)
+    known_lower = {column.lower() for column in known_columns}
+    table_lower = {table.lower() for table in tables}
+
+    scrubbed = STRING_LITERAL_RE.sub("''", sql)
+    candidates: set[str] = set()
+    candidates.update(BACKTICK_IDENT_RE.findall(scrubbed))
+    candidates.update(COMPARED_IDENT_RE.findall(scrubbed))
+    for select_match in re.finditer(r"\bselect\s+(.*?)\s+from\b", scrubbed, re.IGNORECASE | re.DOTALL):
+        for part in select_match.group(1).split(","):
+            token = part.strip().strip("`")
+            if not token or token == "*" or "(" in token or "." in token or " " in token:
+                continue
+            if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", token):
+                candidates.add(token)
+
+    unknown = {
+        candidate
+        for candidate in candidates
+        if candidate.lower() not in known_lower
+        and candidate.lower() not in SQL_KEYWORDS
+        and candidate.lower() not in table_lower
+    }
+    return unknown, known_columns
 
 
 def is_safe_select(sql: str, table_allowlist: set[str] | None = None) -> bool:

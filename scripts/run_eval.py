@@ -52,8 +52,6 @@ def build_evaluator(args: argparse.Namespace):
 
 def build_agent(arm: str, args: argparse.Namespace):
     if arm == "baseline":
-        if args.remote_agent_url:
-            raise ValueError("baseline arm cannot run through SmartSocAgent remote HTTP service")
         from secgym.agents import BaselineAgent
         from secgym.myconfig import CONFIG_LIST
 
@@ -68,13 +66,34 @@ def build_agent(arm: str, args: argparse.Namespace):
     mode = "deterministic" if arm in {"B1_backbone", "B2_schema"} else "agentic"
     if args.remote_agent_url:
         agent = RemoteSmartSocAgent(args.remote_agent_url, timeout=args.remote_timeout, token=args.remote_agent_token)
-        agent.health()
+        health = agent.health()
+        remote_mode = str(health.get("mode") or "")
+        remote_llm = health.get("llm")
+        if remote_mode in {"agentic", "full", "graph"}:
+            if isinstance(remote_llm, dict) and remote_llm.get("backend") in {"", "none"}:
+                raise ValueError(
+                    f"arm {arm}: remote agent reports mode={remote_mode} but llm={remote_llm}. "
+                    "Restart the remote server with SMART_SOC_LLM_BACKEND/OLLAMA_BASE_URL configured "
+                    "(or --allow_no_llm on the server if deterministic fallback is intended)."
+                )
+            if remote_llm is None:
+                print(
+                    f"WARNING: remote agent /health does not report LLM status (old server build); "
+                    f"cannot verify arm {arm} will actually use an LLM.",
+                    flush=True,
+                )
         return agent
+    llm = build_llm_client_from_env(args.llm_backend)
+    if llm is None and mode == "agentic":
+        raise ValueError(
+            f"arm {arm} runs in agentic mode and requires an internal LLM backend. "
+            "Set --llm_backend ollama (or SMART_SOC_LLM_BACKEND=ollama with OLLAMA_BASE_URL)."
+        )
     agent = SmartSocAgent(
         max_steps=args.max_steps,
         layer=args.layer,
         mode=mode,
-        llm=build_llm_client_from_env(args.llm_backend),
+        llm=llm,
         rag_enabled=arm in {"B4_rag", "full"},
         scanner_enabled=arm == "full",
     )

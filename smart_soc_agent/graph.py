@@ -100,13 +100,17 @@ class SmartSocGraph:
         if intent.intent_type != "query_logs" or not intent.sql:
             return intent
         validation = self.runtime._validate_candidate_sql(intent.sql)
-        if validation.ok:
+        if validation.ok and self.runtime._already_emitted(validation.sql):
+            reason = "SQL already attempted this episode; propose a different pivot"
+        elif validation.ok:
             return intent
-        state.append_trace("grounding", {"rejected_sql": intent.sql, "reason": validation.reason})
+        else:
+            reason = validation.reason
+        state.append_trace("grounding", {"rejected_sql": intent.sql, "reason": reason})
         return InvestigationIntent(
             "query_logs",
             sql=None,
-            rationale=f"SQL rejected by action guard: {validation.reason}",
+            rationale=f"SQL rejected by action guard: {reason}",
             confidence=0.0,
             evidence_summary=intent.evidence_summary,
             uncertainty=intent.uncertainty,

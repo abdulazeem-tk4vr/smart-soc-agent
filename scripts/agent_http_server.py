@@ -25,7 +25,14 @@ class AgentRequestHandler(BaseHTTPRequestHandler):
             self._json({"error": "unauthorized"}, HTTPStatus.UNAUTHORIZED)
             return
         if self.path == "/health":
-            self._json({"ok": True, "agent": self.server.agent.name, "mode": self.server.agent.mode})
+            self._json(
+                {
+                    "ok": True,
+                    "agent": self.server.agent.name,
+                    "mode": self.server.agent.mode,
+                    "llm": getattr(self.server, "llm_info", {"backend": "unknown"}),
+                }
+            )
             return
         if self.path == "/logging":
             self._json(self.server.agent.get_logging())
@@ -92,25 +99,55 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--llm_backend", default="", help="Internal smart-agent LLM backend: ollama, none. Defaults to SMART_SOC_LLM_BACKEND.")
     parser.add_argument("--env_file", default=".env", help="Load environment variables from this file if it exists.")
     parser.add_argument("--token", default="", help="Optional bearer token required from local proxy.")
+    parser.add_argument(
+        "--allow_no_llm",
+        action="store_true",
+        help="Permit agentic/full/graph mode without an LLM backend (deterministic fallback only).",
+    )
     parser.add_argument("--quiet", action="store_true")
     return parser.parse_args()
+
+
+def _llm_info(llm: object | None) -> dict[str, Any]:
+    if llm is None:
+        return {"backend": "none"}
+    config = getattr(llm, "config", None)
+    if config is not None:
+        return {
+            "backend": "ollama",
+            "model": getattr(config, "model", "unknown"),
+            "base_url": getattr(config, "base_url", "unknown"),
+        }
+    return {"backend": type(llm).__name__}
 
 
 def main() -> int:
     args = parse_args()
     load_env_file(args.env_file)
+    llm = build_llm_client_from_env(args.llm_backend)
+    if llm is None and args.mode in {"agentic", "full", "graph"} and not args.allow_no_llm:
+        raise SystemExit(
+            f"mode={args.mode} requires an LLM backend but none is configured. "
+            "Set SMART_SOC_LLM_BACKEND=ollama and OLLAMA_BASE_URL (or pass --llm_backend ollama), "
+            "or pass --allow_no_llm to knowingly run the deterministic fallback."
+        )
     server = AgentHTTPServer((args.host, args.port), AgentRequestHandler)
     server.agent = SmartSocAgent(
         max_steps=args.max_steps,
         layer=args.layer,
         mode=args.mode,
-        llm=build_llm_client_from_env(args.llm_backend),
+        llm=llm,
         rag_enabled=not args.disable_rag,
         scanner_enabled=not args.disable_scanner,
     )
     server.token = args.token
     server.quiet = args.quiet
-    print(f"SmartSocAgent HTTP server listening on http://{args.host}:{args.port}", flush=True)
+    server.llm_info = _llm_info(llm)
+    print(
+        f"SmartSocAgent HTTP server listening on http://{args.host}:{args.port} "
+        f"(mode={args.mode}, llm={server.llm_info})",
+        flush=True,
+    )
     try:
         server.serve_forever()
     except KeyboardInterrupt:

@@ -18,7 +18,10 @@ You may propose one of two intents:
 
 Rules:
 - Use question, schema_digest, registry_top, query_history, and budget only. Never rely on hidden labels or gold fields.
-- Do not repeat SQL already in query_history.
+- Use ONLY tables and columns that appear in schema_digest. Never invent table or column names.
+- Do not repeat SQL already in query_history. Entries in do_not_repeat_sql failed or returned nothing — proposing them again wastes budget.
+- If schema_digest is empty for a table you need, propose DESCRIBE for that table instead of guessing columns.
+- Entities often hide inside wide text/JSON columns (e.g. Entities in SecurityAlert, AlertEvidence fields); use LIKE '%value%' predicates over those columns to pivot.
 - SQL must be one read-only statement and should project narrow columns when useful.
 - Prefer SecurityAlert and AlertEvidence pivots when available; otherwise pivot through log tables.
 - submit_answer must be self-contained and must not simply restate entities already present in the question.
@@ -144,13 +147,20 @@ class Investigator:
         registry: EvidenceRegistry = kwargs["registry"]
         question = str(kwargs["question"] or "")
         requested_types = answer_gap_entity_types(question)
+        history = kwargs["query_history"]
+        do_not_repeat = [
+            item.get("sql")
+            for item in history
+            if item.get("sql") and (not item.get("ok") or not item.get("rows_returned"))
+        ]
         payload = {
             "question": question,
             "requested_entity_types": requested_types,
             "schema_digest": kwargs["schema_digest"],
             "registry_top": registry.compact(limit=20),
             "known_entities": kwargs["known_entities"],
-            "query_history": kwargs["query_history"][-12:],
+            "query_history": history[-12:],
+            "do_not_repeat_sql": do_not_repeat[-8:],
             "budget": kwargs["budget_state"],
             "latest_result": kwargs.get("latest_result") or {},
             "episode_summary": kwargs.get("episode_summary") or {},

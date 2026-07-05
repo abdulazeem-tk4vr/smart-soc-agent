@@ -21,19 +21,21 @@ def test_default_rag_data_dir_finds_packaged_corpus():
 
 def test_agentic_graph_calls_rag_once_and_caches_context():
     rag = RAGIntel(LocalKeywordRAGRetriever((RAGDocument("test", "IP evidence", "IP address alert investigation"),)))
-    agent = SmartSocAgent(max_steps=6, mode="agentic", rag_intel=rag)
+    agent = SmartSocAgent(max_steps=8, mode="agentic", rag_intel=rag)
 
     agent.act("Question: What IP address was involved?")
     action, submit = agent.act("[('AlertEvidence',)]")
+    assert (action, submit) == ("DESCRIBE AlertEvidence", False)
+
+    action, submit = agent.act("[('RemoteIP', 'varchar(64)', 'YES', '', None, '')]")
     first_trace = agent.get_logging()["action_trace"][-1]
 
     assert submit is False
-    assert action == "DESCRIBE AlertEvidence"
     assert agent.rag_called is True
     assert agent.rag_context_cache
     assert any(item["node"] == "rag" for item in first_trace["graph_traces"])
 
-    agent.act("[('RemoteIP', 'varchar(64)', 'YES', '', None, '')]")
+    agent.act("[('198.51.100.77',)]")
     second_trace = agent.get_logging()["action_trace"][-1]
     rag_trace = next(item for item in second_trace["graph_traces"] if item["node"] == "rag")
     assert rag_trace["output_summary"]["cache_hit"] is True

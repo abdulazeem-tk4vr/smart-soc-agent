@@ -214,9 +214,10 @@ def deterministic_candidates(
     available = {table.lower(): table for table in table_names}
     table_columns = table_columns or {}
 
+    pivot_types = ("name",) + answer_gap_entity_types(question)
     for table in ("AlertEvidence", "SecurityAlert"):
         if table.lower() in available:
-            for entity_type in answer_gap_entity_types(question):
+            for entity_type in pivot_types:
                 for value in known_entities.get(entity_type, [])[:4]:
                     candidates.append(_like_query(available[table.lower()], table_columns.get(table, ()), value, default_limit))
 

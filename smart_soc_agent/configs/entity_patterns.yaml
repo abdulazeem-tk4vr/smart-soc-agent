@@ -9,7 +9,10 @@ patterns:
   ip:
     - "\\b(?:(?:25[0-5]|2[0-4][0-9]|1?[0-9]{1,2})\\.){3}(?:25[0-5]|2[0-4][0-9]|1?[0-9]{1,2})\\b"
   host:
-    - "\\b[A-Za-z][A-Za-z0-9-]{2,63}\\b"
+    # Require a hyphen or trailing digits so plain English words don't match;
+    # bare-word hostnames are still captured via host field_hints (DeviceName etc.).
+    - "\\b[A-Za-z][A-Za-z0-9]*-[A-Za-z0-9-]{1,60}\\b"
+    - "\\b[A-Za-z][A-Za-z]{1,40}[0-9]{1,8}[A-Za-z]?\\b"
   domain:
     - "\\b(?:[A-Za-z0-9-]+\\.)+[A-Za-z]{2,}\\b"
   url:
