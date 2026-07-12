@@ -117,6 +117,8 @@ def _llm_info(llm: object | None) -> dict[str, Any]:
             "backend": "ollama",
             "model": getattr(config, "model", "unknown"),
             "base_url": getattr(config, "base_url", "unknown"),
+            "timeout": getattr(config, "timeout", "unknown"),
+            "num_predict": getattr(config, "num_predict", "unknown"),
         }
     return {"backend": type(llm).__name__}
 

@@ -31,6 +31,7 @@ class OllamaConfig:
     model: str = "llama3.2:3b"
     temperature: float = 0.2
     timeout: float = 60.0
+    num_predict: int = 512
 
     @classmethod
     def from_env(cls) -> "OllamaConfig":
@@ -42,6 +43,7 @@ class OllamaConfig:
             model=os.getenv("OLLAMA_MODEL", "llama3.2:3b"),
             temperature=float(os.getenv("OLLAMA_TEMPERATURE", "0.2")),
             timeout=float(os.getenv("OLLAMA_TIMEOUT", "60")),
+            num_predict=int(os.getenv("OLLAMA_NUM_PREDICT", "512")),
         )
 
 
@@ -108,7 +110,11 @@ class OllamaLLMClient:
             "model": self.config.model,
             "prompt": prompt,
             "stream": False,
-            "options": {"temperature": self.config.temperature},
+            "format": "json",
+            "options": {
+                "temperature": self.config.temperature,
+                "num_predict": self.config.num_predict,
+            },
         }
         response = self.session.post(f"{self.config.base_url}/api/generate", json=payload, timeout=self.config.timeout)
         response.raise_for_status()

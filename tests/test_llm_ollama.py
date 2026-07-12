@@ -27,15 +27,17 @@ class FakeSession:
 def test_build_llm_client_from_env_ollama(monkeypatch):
     monkeypatch.setenv("SMART_SOC_LLM_BACKEND", "ollama")
     monkeypatch.setenv("OLLAMA_BASE_URL", "https://runpod.example/ollama/")
-    monkeypatch.setenv("OLLAMA_MODEL", "qwen2.5:7b-instruct")
+    monkeypatch.setenv("OLLAMA_MODEL", "qwen2.5:14b")
     monkeypatch.setenv("OLLAMA_TIMEOUT", "120")
+    monkeypatch.setenv("OLLAMA_NUM_PREDICT", "384")
 
     client = build_llm_client_from_env()
 
     assert isinstance(client, OllamaLLMClient)
     assert client.config.base_url == "https://runpod.example/ollama"
-    assert client.config.model == "qwen2.5:7b-instruct"
+    assert client.config.model == "qwen2.5:14b"
     assert client.config.timeout == 120
+    assert client.config.num_predict == 384
 
 
 def test_build_llm_client_from_env_none(monkeypatch):
@@ -72,6 +74,8 @@ def test_ollama_client_repairs_non_json_response():
     assert parsed["sql"] == "SHOW TABLES"
     assert len(session.calls) == 2
     assert session.calls[0]["url"] == "https://runpod.example/api/generate"
+    assert session.calls[0]["json"]["format"] == "json"
+    assert session.calls[0]["json"]["options"]["num_predict"] == 512
 
 
 def test_build_llm_client_from_env_rejects_unknown_backend():
