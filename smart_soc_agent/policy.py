@@ -24,6 +24,7 @@ class InvestigationPolicy:
     query_history: list[dict[str, Any]] = field(default_factory=list)
     episode_summary: dict[str, Any] = field(default_factory=dict)
     rag_context_cache: list[dict[str, Any]] = field(default_factory=list)
+    rag_audit_cache: list[dict[str, Any]] = field(default_factory=list)
     rag_query_cache: str = ""
     rag_called: bool = False
 
@@ -32,6 +33,7 @@ class InvestigationPolicy:
         self.query_history.clear()
         self.episode_summary.clear()
         self.rag_context_cache.clear()
+        self.rag_audit_cache.clear()
         self.rag_query_cache = ""
         self.rag_called = False
 

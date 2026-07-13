@@ -9,6 +9,7 @@ from .graph_state import DefenderGraphState
 from .investigator import InvestigationIntent, Investigator, LLMVerifier, VerifierCandidate
 from .observation import ParsedObservation
 from .responder import Responder, verified_candidate_payload
+from .rag_context import prepare_rag_context, rag_trace_references, scan_rag_documents
 from .scanner import InjectionScanner
 from .rag.rag_query import RAGQueryPlanner
 
@@ -29,6 +30,11 @@ class SmartSocGraph:
             observation={"kind": parsed.kind, "raw": parsed.raw[:2000]},
             parsed_observation=parsed,
             episode_summary=dict(getattr(self.runtime, "episode_summary", {}) or {}),
+            rag_context=(
+                list(getattr(self.runtime, "rag_context_cache", []) or [])
+                if getattr(self.runtime, "rag_called", False)
+                else []
+            ),
         )
         self._scanner_node(state)
         self._registry_node(state)
@@ -131,17 +137,69 @@ class SmartSocGraph:
             query_source = plan.source
         if getattr(self.runtime, "rag_called", False):
             state.rag_context = list(getattr(self.runtime, "rag_context_cache", []) or [])
-            state.append_trace("rag", {"query": query, "query_source": query_source, "documents": len(state.rag_context), "cache_hit": True})
+            audit_references = list(getattr(self.runtime, "rag_audit_cache", []) or [])
+            state.append_trace(
+                "rag",
+                {
+                    "query": query,
+                    "query_source": query_source,
+                    "documents": len(state.rag_context),
+                    "references": audit_references,
+                    "unsafe_documents": sum(
+                        reference.get("scanner_status") != "clean" for reference in audit_references
+                    ),
+                    "cache_hit": True,
+                },
+            )
             return
         if not query or self.rag is None:
             state.append_trace("rag", {"query": query, "query_source": query_source, "documents": 0, "cache_hit": False, "skipped_reason": "no_query_or_backend"})
             return
-        docs = self.rag.context_for(query)
-        state.rag_context = [asdict(doc) for doc in docs]
+        try:
+            docs = self.rag.context_for(query)
+        except Exception as exc:
+            state.rag_context = []
+            self.runtime.rag_context_cache = []
+            self.runtime.rag_audit_cache = []
+            self.runtime.rag_query_cache = query
+            self.runtime.rag_called = True
+            state.append_trace(
+                "rag",
+                {
+                    "query": query,
+                    "query_source": query_source,
+                    "documents": 0,
+                    "references": [],
+                    "unsafe_documents": 0,
+                    "cache_hit": False,
+                    "retrieval_error": {
+                        "type": type(exc).__name__,
+                        "message": str(exc)[:300],
+                    },
+                },
+            )
+            return
+        scanned_docs = scan_rag_documents(docs, self.scanner)
+        state.rag_context = prepare_rag_context(scanned_docs)
+        audit_references = rag_trace_references(scanned_docs)
         self.runtime.rag_context_cache = list(state.rag_context)
+        self.runtime.rag_audit_cache = list(audit_references)
         self.runtime.rag_query_cache = query
         self.runtime.rag_called = True
-        state.append_trace("rag", {"query": query, "query_source": query_source, "documents": len(state.rag_context), "cache_hit": False})
+        state.append_trace(
+            "rag",
+            {
+                "query": query,
+                "query_source": query_source,
+                "documents": len(state.rag_context),
+                "retrieved_documents": len(docs),
+                "references": audit_references,
+                "unsafe_documents": sum(
+                    reference.get("scanner_status") != "clean" for reference in audit_references
+                ),
+                "cache_hit": False,
+            },
+        )
 
     def _verifier_node(self, state: DefenderGraphState) -> None:
         intent = InvestigationIntent(**state.investigation_intent)

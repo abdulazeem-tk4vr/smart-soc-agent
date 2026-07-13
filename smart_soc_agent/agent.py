@@ -39,6 +39,7 @@ class SmartSocAgent:
     query_history: list[dict[str, Any]] = field(default_factory=list)
     episode_summary: dict[str, Any] = field(default_factory=dict)
     rag_context_cache: list[dict[str, Any]] = field(default_factory=list)
+    rag_audit_cache: list[dict[str, Any]] = field(default_factory=list)
     rag_query_cache: str = ""
     rag_called: bool = False
     rag_intel: Any | None = None
@@ -117,6 +118,7 @@ class SmartSocAgent:
         self.query_history = []
         self.episode_summary = {}
         self.rag_context_cache = []
+        self.rag_audit_cache = []
         self.rag_query_cache = ""
         self.rag_called = False
         self.messages = []
