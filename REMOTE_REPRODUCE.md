@@ -60,6 +60,53 @@ Invoke-RestMethod http://<linux-host>:8080/health
 
 The `llm` object should show `model: qwen2.5:14b`, `timeout: 45`, and `num_predict: 512`.
 
+## Running the Remote Agent Without RAG
+
+RAG is configured by the Linux SmartSocAgent HTTP server, not by the SecRL client. Stop the existing HTTP server and restart it with `--disable_rag`. The RAG server does not need to be running, and `SOC_DEFENDER_RAG_URL` and `SMART_SOC_RAG_BACKEND` can be left unset.
+
+```bash
+cd /workspace/smart-soc-agent
+
+unset SOC_DEFENDER_RAG_URL
+unset SMART_SOC_RAG_BACKEND
+export SMART_SOC_LLM_BACKEND=ollama
+export OLLAMA_BASE_URL=http://127.0.0.1:11434
+export OLLAMA_MODEL=qwen2.5:14b
+export OLLAMA_TIMEOUT=45
+export OLLAMA_NUM_PREDICT=512
+
+python scripts/agent_http_server.py \
+  --host 0.0.0.0 \
+  --port 8080 \
+  --mode full \
+  --max_steps 25 \
+  --layer alert \
+  --llm_backend ollama \
+  --disable_rag
+```
+
+Then run SecRL from Git Bash on Windows. There is no `--disable_rag` option in `experiments/run_exp.py`; the command remains unchanged because `smart_soc_remote` delegates acting to the already-configured HTTP server.
+
+```bash
+cd /c/Relevant/OMSCS/AI_8903/soc-attack/soc-benchmarks/SecRL
+source .venv/Scripts/activate
+
+export REMOTE_AGENT_URL="https://<runpod-agent-host>-8080.proxy.runpod.net"
+
+python experiments/run_exp.py \
+  --agent smart_soc_remote \
+  --model qwen2.5:14b \
+  --split stratified_100 \
+  --max_steps 25 \
+  --temperature 0 \
+  --eval_model gpt-4o \
+  --cache_seed 131 \
+  --num_trials 1 \
+  --overwrite
+```
+
+This configuration is the no-RAG/gate (`B3_gate`) ablation. Confirm the server mode through its health endpoint before starting a long evaluation.
+
 ## Windows Quick Wiring Check
 
 ```powershell
