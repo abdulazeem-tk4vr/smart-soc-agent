@@ -14,6 +14,7 @@ from .sql_planner import answer_gap_entity_types, deterministic_candidates, pref
 
 
 DEFAULT_MAX_STEPS = 15
+DEFAULT_FIXED_STEPS = 10
 SCHEMA_WARMUP_TABLES = 3
 DESCRIBE_BUDGET = 6
 
@@ -21,6 +22,8 @@ DESCRIBE_BUDGET = 6
 @dataclass
 class SmartSocAgent:
     max_steps: int = DEFAULT_MAX_STEPS
+    fixed_steps_enabled: bool = True
+    fixed_steps: int = DEFAULT_FIXED_STEPS
     mode: str = "deterministic"
     layer: str = "alert"
     default_limit: int = 15
@@ -48,6 +51,12 @@ class SmartSocAgent:
     messages: list[dict[str, str]] = field(default_factory=list)
     action_trace: list[dict[str, Any]] = field(default_factory=list)
     usage_summary: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if self.fixed_steps < 1:
+            raise ValueError("fixed_steps must be at least 1")
+        if self.fixed_steps_enabled:
+            self.max_steps = self.fixed_steps
 
     @property
     def name(self) -> str:
@@ -378,6 +387,8 @@ def build_agent(
     rag_intel: Any | None = None,
     rag_enabled: bool = True,
     scanner_enabled: bool = True,
+    fixed_steps_enabled: bool = True,
+    fixed_steps: int = DEFAULT_FIXED_STEPS,
     **_: Any,
 ) -> SmartSocAgent:
     return SmartSocAgent(
@@ -388,4 +399,6 @@ def build_agent(
         rag_intel=rag_intel,
         rag_enabled=rag_enabled,
         scanner_enabled=scanner_enabled,
+        fixed_steps_enabled=fixed_steps_enabled,
+        fixed_steps=fixed_steps,
     )

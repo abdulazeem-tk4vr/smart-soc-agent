@@ -38,7 +38,7 @@ def test_deadline_submission_contains_registry_ip_not_boilerplate():
 
 
 def test_deadline_boilerplate_only_when_registry_is_empty():
-    agent = SmartSocAgent(max_steps=1, mode="deterministic")
+    agent = SmartSocAgent(max_steps=1, mode="deterministic", fixed_steps_enabled=False)
     action, submit = agent.act(QUESTION)
 
     assert submit is True

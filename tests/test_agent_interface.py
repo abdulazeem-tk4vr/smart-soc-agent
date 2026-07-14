@@ -10,10 +10,19 @@ def test_agent_matches_secrl_action_contract():
     assert action == "SHOW TABLES"
     assert submit is False
     assert agent.name == "SmartSocAgent"
+    assert agent.max_steps == 10
+
+
+def test_fixed_steps_are_configurable_and_can_be_disabled():
+    configured = SmartSocAgent(max_steps=25, fixed_steps=7)
+    disabled = SmartSocAgent(max_steps=25, fixed_steps_enabled=False)
+
+    assert configured.max_steps == 7
+    assert disabled.max_steps == 25
 
 
 def test_agent_discovers_alert_tables_and_does_not_repeat_probe():
-    agent = SmartSocAgent(max_steps=6)
+    agent = SmartSocAgent(max_steps=6, fixed_steps_enabled=False)
     agent.act("Question?")
     action, submit = agent.act("[('AlertEvidence',), ('SecurityAlert',)]")
 
@@ -36,7 +45,7 @@ def test_agent_discovers_alert_tables_and_does_not_repeat_probe():
 
 
 def test_agent_submits_before_budget_and_logs():
-    agent = SmartSocAgent(max_steps=1)
+    agent = SmartSocAgent(max_steps=1, fixed_steps_enabled=False)
     action, submit = agent.act("Question?")
 
     assert submit is True

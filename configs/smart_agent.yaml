@@ -1,5 +1,7 @@
 mode: full
 max_steps: 25
+fixed_steps_enabled: true
+fixed_steps: 10
 layer: alert
 split: test
 cache_seed: 131
